@@ -63,6 +63,7 @@
 <body>
     <div class="container">
         <h1>ユーザー登録</h1>
+        
 <?php
         $dbServer = '127.0.0.1';
         $dbName = 'mydb';
