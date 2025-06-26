@@ -63,58 +63,78 @@
 <body>
     <div class="container">
         <h1>ユーザー登録</h1>
+<?php
+        $dbServer = '127.0.0.1';
+        $dbName = 'mydb';
+        $dbUser = 'testuser';
+        $dbPass = 'pass';
 
-       <?php
-$dbServer = '127.0.0.1';
-$dbName = 'mydb';
-$dbUser = 'testuser';
-$dbPass = 'pass';
+        $message = '';
+        $messageType = '';
 
-$message = '';
-$messageType = '';
-
-function logError($msg) {
-    file_put_contents(
-        __DIR__ . '/user_registration_errors.log',
-        date('Y-m-d H:i:s') . ' - ' . $msg . PHP_EOL,
-        FILE_APPEND
-    );
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $student_number = $_POST['student_number'] ?? '';
-    $department = $_POST['department'] ?? '';
-    $password = $_POST['password'] ?? '';
-
-    if ($student_number && $department && $password) {
-        try {
-            $pdo = new PDO("mysql:host=$dbServer;dbname=$dbName;charset=utf8", $dbUser, $dbPass);
-            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-            // パスワードはハッシュ化して保存（セキュリティのため）
-            $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
-
-            $stmt = $pdo->prepare("INSERT INTO users (student_number, department, password) VALUES (:student_number, :department, :password)");
-            $stmt->execute([
-                ':student_number' => $student_number,
-                ':department' => $department,
-                ':password' => $hashedPassword
-            ]);
-
-            $message = '登録が完了しました。';
-            $messageType = 'success';
-
-        } catch (PDOException $e) {
-            logError($e->getMessage());
-            $message = 'データベースエラーが発生しました。';
-            $messageType = 'error';
+        function logError($msg) {
+            file_put_contents('C:/xampp/htdocs/ogasawara-a/user_registration_errors.log', date('Y-m-d H:i:s') . ' - ' . $msg . PHP_EOL, FILE_APPEND);
         }
-    } else {
-        $message = '全ての項目を入力してください。';
-        $messageType = 'error';
-    }
-}
-?>
+
+
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $student_number = $_POST['student_number'] ?? ''; // student_number로 변경
+            $department = $_POST['department'] ?? '';
+            $password_input = $_POST['password'] ?? '';
+            $password_confirm = $_POST['password_confirm'] ?? '';
+
+            if (empty($student_number) || empty($department) || empty($password_input) || empty($password_confirm)) {
+                $message = '全ての項目を入力してください。';
+                $messageType = 'error';
+            } elseif ($password_input !== $password_confirm) {
+                $message = 'パスワードと確認用パスワードが一致しません。';
+                $messageType = 'error';
+            } else {
+                try {
+                    $pdo = new PDO("mysql:host=$dbServer;dbname=$dbName;charset=utf8", $dbUser, $dbPass);
+                    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+                    // student_number 중복 확인
+                    $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE student_number = :student_number");
+                    $stmt->execute([':student_number' => $student_number]);
+                    if ($stmt->fetchColumn() > 0) {
+                        $message = 'この学籍番号は既に登録されています。';
+                        $messageType = 'error';
+                    } else {
+                        // 비밀번호 해싱 (password_hash()는 강력히 권장되는 방법)
+                        $hashed_password = password_hash($password_input, PASSWORD_DEFAULT);
+
+                        // 사용자 정보 삽입 (password_hash 대신 password 컬럼 사용)
+                        $stmt = $pdo->prepare("INSERT INTO users (student_number, department, password) VALUES (:student_number, :department, :password)");
+                        $stmt->execute([
+                            ':student_number' => $student_number,
+                            ':department' => $department,
+                            ':password' => $hashed_password // 해시된 비밀번호를 password 컬럼에 저장
+                        ]);
+
+                        $message = 'ユーザー登録が完了しました！ <a href="index.php">時間割登録画面へ</a>';
+                        $messageType = 'success';
+                    }
+
+                } catch (PDOException $e) {
+                    $message = 'データベースエラーが発生しました: ' . htmlspecialchars($e->getMessage());
+                    $messageType = 'error';
+                    logError("User registration DB error: " . $e->getMessage());
+                } catch (Exception $e) {
+                    $message = 'エラーが発生しました: ' . htmlspecialchars($e->getMessage());
+                    $messageType = 'error';
+                    logError("User registration error: " . $e->getMessage());
+                }
+            }
+        }
+
+        if ($message) {
+            echo "<div class='message {$messageType}'>{$message}</div>";
+        }
+        ?>
+
+       
 
         <form action="register_user.php" method="post">
             <div class="form-group">
